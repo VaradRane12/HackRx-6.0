@@ -1,7 +1,7 @@
-from langchain_community.chat_models import ChatOpenAI
-from langchain.chains import ConversationalRetrievalChain
+from langchain_openai import ChatOpenAI  # ✅ use new import
 
-def build_chain(vectorstore):
-    llm = ChatOpenAI(model_name="gpt-4", temperature=0)
-    retriever = vectorstore.as_retriever(search_type="similarity", k=5)
-    return ConversationalRetrievalChain.from_llm(llm, retriever=retriever, return_source_documents=True)
+def get_llm():
+    return ChatOpenAI(
+        model_name="gpt-4",  # or "gpt-3.5-turbo" for cheaper testing
+        temperature=0,
+    )
