@@ -1,0 +1,10 @@
+langchain
+openai
+faiss-cpu
+pymupdf
+fastapi
+uvicorn
+requests
+python-multipart
+langchain-community
+tiktoken
