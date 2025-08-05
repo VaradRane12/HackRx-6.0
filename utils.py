@@ -1,27 +1,17 @@
 import aiohttp
 import tempfile
 import os
-from langchain_community.vectorstores import Pinecone as LangchainPinecone
-from langchain_openai import OpenAIEmbeddings
+from langchain.vectorstores import FAISS
+from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from langchain_text_splitters import CharacterTextSplitter
 from langchain_community.document_loaders import PyPDFLoader
 from langchain.chains import RetrievalQA
-from langchain.llms import OpenAI
-import pinecone
-
 from dotenv import load_dotenv
+
 load_dotenv()
 
-# Load environment variables
-PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
-PINECONE_ENV = "us-east-1-aws"
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-INDEX_NAME = "pdf-vector-index1"
-
-pinecone.init(api_key=PINECONE_API_KEY, environment=PINECONE_ENV)
-
-def get_index():
-    return pinecone.Index(INDEX_NAME)
+INDEX_DIR = "local_faiss_index"
 
 async def download_pdf(url: str) -> str:
     async with aiohttp.ClientSession() as session:
@@ -41,12 +31,25 @@ async def process_pdf_and_answer(pdf_path: str, questions: list) -> list:
     chunks = splitter.split_documents(docs)
 
     embeddings = OpenAIEmbeddings(api_key=OPENAI_API_KEY)
-    vectorstore = LangchainPinecone.from_documents(chunks, embeddings, index_name=INDEX_NAME)
+
+    if os.path.exists(INDEX_DIR):
+        vectorstore = FAISS.load_local(INDEX_DIR, embeddings, allow_dangerous_deserialization=True)
+    else:
+        vectorstore = FAISS.from_documents(chunks, embeddings)
+        vectorstore.save_local(INDEX_DIR)
 
     qa = RetrievalQA.from_chain_type(
-        llm=OpenAI(api_key=OPENAI_API_KEY, temperature=0),
+        llm=ChatOpenAI(api_key=OPENAI_API_KEY, temperature=0),
         retriever=vectorstore.as_retriever(),
         return_source_documents=False
     )
 
-    return [qa.run(q) for q in questions]
+    # Using invoke safely
+    responses = []
+    for q in questions:
+        result = qa.invoke({"query": q})
+        if isinstance(result, dict):
+            responses.append(result.get("result", str(result)))
+        else:
+            responses.append(str(result))
+    return responses
