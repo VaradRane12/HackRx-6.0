@@ -6,45 +6,43 @@ from langchain_community.document_loaders import PyPDFLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_openai import OpenAIEmbeddings
 from langchain_community.vectorstores import Pinecone
-from pinecone import Pinecone as PineconeClient, ServerlessSpec, PineconeVectorStore
+import pinecone
 
-# Load keys from .env
+# Load API Keys
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
+PINECONE_ENV = "us-east-1-aws"
+INDEX_NAME = "pdf-vector-index1"
 
-
-# PDF loading
+# Step 1: Load PDF and split
 loader = PyPDFLoader("pdf.pdf")
 docs = loader.load()
 
-# Split documents
 text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
 documents = text_splitter.split_documents(docs)
 
-# Embeddings
-embedding = OpenAIEmbeddings()
+# Step 2: Setup Embeddings
+embeddings = OpenAIEmbeddings()
 
-# Pinecone v3 client setup
-pc = PineconeClient(api_key=PINECONE_API_KEY)
+# Step 3: Init Pinecone (v2.x style)
+pinecone.init(api_key=PINECONE_API_KEY, environment=PINECONE_ENV)
 
-index_name = "pdf-vector-index"
-
-# Create index if it doesn't exist
-if index_name not in pc.list_indexes().names():
-    pc.create_index(
-        name=index_name,
-        dimension=1536,
-        metric="cosine",
-        spec=ServerlessSpec(cloud="aws", region="us-east-1")
+# Step 4: Create index if not exists
+print(pinecone.list_indexes())
+if INDEX_NAME not in pinecone.list_indexes():
+    pinecone.create_index(
+        name=INDEX_NAME,
+        dimension=1536,  # must match OpenAI embedding size
+        metric="cosine"
     )
 
-# Connect to the index
-index = pc.Index(index_name)
+# Step 5: Load into vectorstore
+vectorstore = Pinecone.from_documents(documents, embeddings, index_name=INDEX_NAME)
 
-# Use LangChain Pinecone wrapper
-vectorstore = PineconeVectorStore(index_name=index_name, embedding=embeddings)
+# Step 6: Search
+query = "does this cover heart injury?"
+results = vectorstore.similarity_search(query, k=1)
 
-# Query
-query = "does this cover knee injury?"
-retrieved_results = db.similarity_search(query)
-print(retrieved_results[0].page_content)
+# Step 7: Show result
+print("\n--- Top Matching Page ---\n")
+print(results[0].page_content)
