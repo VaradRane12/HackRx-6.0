@@ -1,8 +1,9 @@
 from fastapi import FastAPI, Header, HTTPException
 from model import HackrxRequest, HackrxResponse
 from utils import download_pdf, process_pdf_and_answer
-import os
 from dotenv import load_dotenv
+from starlette.concurrency import run_in_threadpool
+import os
 
 load_dotenv()
 app = FastAPI()
@@ -23,7 +24,10 @@ async def run_hackrx(
 
     try:
         pdf_path = await download_pdf(payload.documents)
-        answers = await process_pdf_and_answer(pdf_path, payload.questions)
+
+        # Now run sync PDF processing in a background thread
+        answers = await run_in_threadpool(process_pdf_and_answer, pdf_path, payload.questions)
+
         os.remove(pdf_path)
         return HackrxResponse(answers=answers)
     except Exception as e:
