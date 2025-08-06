@@ -37,7 +37,7 @@ def process_pdf_and_answer(pdf_path: str, questions: list) -> list:
     loader = PyPDFLoader(pdf_path)
     docs = loader.load()
 
-    splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+    splitter = CharacterTextSplitter(chunk_size=500, chunk_overlap=150)
     chunks = splitter.split_documents(docs)
 
     embeddings = OpenAIEmbeddings(api_key=OPENAI_API_KEY)
