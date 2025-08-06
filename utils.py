@@ -53,10 +53,8 @@ def process_pdf_and_answer(pdf_path: str, questions: list) -> list:
         retriever=vectorstore.as_retriever(),
         return_source_documents=False
     )
-    prompt_template = (
-    "You are an intelligent assistant trained to extract accurate information from the given document. "
-    "Respond to the following question using only the information provided. Be concise and include context if necessary: "
-)
+    prompt_template = "You are an intelligent assistant trained to extract accurate information from the given document. Respond to the following question using only the information provided. Be concise and include context if necessary:    "
+
     return [
-        qa.invoke({prompt_template: q}).get("result", "") for q in questions
+        qa.invoke({"query": prompt_template+q}).get("result", "") for q in questions
     ]
