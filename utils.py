@@ -9,12 +9,21 @@ from langchain_text_splitters import CharacterTextSplitter
 from langchain_community.document_loaders import PyPDFLoader
 from langchain.chains import RetrievalQA
 from dotenv import load_dotenv
+import re
+from langchain.document_loaders import PyPDFLoader
+from langchain.schema import Document
 
 load_dotenv()
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 INDEX_DIR_BASE = "faiss_indexes"
 os.makedirs(INDEX_DIR_BASE, exist_ok=True)
+
+
+def clean_text(text):
+    return re.sub(r'\s+', ' ', text).strip()
+
+
 
 def get_pdf_hash(pdf_path):
     with open(pdf_path, "rb") as f:
@@ -33,26 +42,34 @@ async def download_pdf(url: str) -> str:
 def process_pdf_and_answer(pdf_path: str, questions: list) -> list:
     pdf_hash = get_pdf_hash(pdf_path)
     index_dir = os.path.join(INDEX_DIR_BASE, pdf_hash)
-
+    
     loader = PyPDFLoader(pdf_path)
-    docs = loader.load()
+    pages = loader.load()
+    cleaned_docs = [Document(page_content=clean_text(doc.page_content)) for doc in pages]
+    print(cleaned_docs)
+    splitter = CharacterTextSplitter(chunk_size=750, chunk_overlap=100)
+    chunks = splitter.split_documents(cleaned_docs)
 
-    splitter = CharacterTextSplitter(chunk_size=500, chunk_overlap=150)
-    chunks = splitter.split_documents(docs)
-
-    embeddings = OpenAIEmbeddings(api_key=OPENAI_API_KEY)
-
+    embeddings = OpenAIEmbeddings(
+        openai_api_key=OPENAI_API_KEY
+    )
     if os.path.exists(index_dir):
         vectorstore = FAISS.load_local(index_dir, embeddings, allow_dangerous_deserialization=True)
     else:
         vectorstore = FAISS.from_documents(chunks, embeddings)
         vectorstore.save_local(index_dir)
+    llm=ChatOpenAI(api_key=OPENAI_API_KEY, temperature=0)
+    retriever=vectorstore.as_retriever()
 
     qa = RetrievalQA.from_chain_type(
-        llm=ChatOpenAI(api_key=OPENAI_API_KEY, temperature=0),
-        retriever=vectorstore.as_retriever(),
+        llm=llm,
+        retriever=retriever,
+
         return_source_documents=False
+
+
     )
+
     prompt_template = "You are an intelligent assistant trained to extract accurate information from the given document. Respond to the following question using only the information provided. Be concise and include context if necessary:    "
 
     return [
