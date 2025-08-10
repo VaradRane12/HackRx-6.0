@@ -24,6 +24,7 @@ async def run_hackrx(
 
     try:
         pdf_path = await download_pdf(payload.documents)
+        print(pdf_path)
 
         # Now run sync PDF processing in a background thread
         answers = await run_in_threadpool(process_pdf_and_answer, pdf_path, payload.questions)
